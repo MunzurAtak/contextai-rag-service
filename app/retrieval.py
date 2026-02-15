@@ -5,18 +5,28 @@ import numpy as np
 from app.config import FAISS_INDEX_PATH, METADATA_PATH
 
 
-def create_faiss_index(embeddings: list[list[float]]):
-    dimension = len(embeddings[0])
-    index = faiss.IndexFlatL2(dimension)
-    index.add(np.array(embeddings).astype("float32"))
+def create_or_load_index(dimension: int):
+    if os.path.exists(FAISS_INDEX_PATH):
+        index = faiss.read_index(FAISS_INDEX_PATH)
+    else:
+        index = faiss.IndexFlatL2(dimension)
     return index
 
 
-def save_index(index, metadata: list[str]):
+def save_index(index, metadata: list[dict]):
     os.makedirs("vectorstore", exist_ok=True)
     faiss.write_index(index, FAISS_INDEX_PATH)
+
+    if os.path.exists(METADATA_PATH):
+        with open(METADATA_PATH, "rb") as f:
+            existing_metadata = pickle.load(f)
+    else:
+        existing_metadata = []
+
+    existing_metadata.extend(metadata)
+
     with open(METADATA_PATH, "wb") as f:
-        pickle.dump(metadata, f)
+        pickle.dump(existing_metadata, f)
 
 
 def load_index():
@@ -24,6 +34,7 @@ def load_index():
         raise FileNotFoundError("Vector index not found.")
 
     index = faiss.read_index(FAISS_INDEX_PATH)
+
     with open(METADATA_PATH, "rb") as f:
         metadata = pickle.load(f)
 
