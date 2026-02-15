@@ -1,4 +1,5 @@
 import os
+import numpy as np
 from pypdf import PdfReader
 from app.config import CHUNK_SIZE, CHUNK_OVERLAP, TOP_K_DEFAULT
 from app.embeddings import embed_texts
