@@ -1,8 +1,8 @@
 import os
 from pypdf import PdfReader
-from app.config import CHUNK_SIZE, CHUNK_OVERLAP
+from app.config import CHUNK_SIZE, CHUNK_OVERLAP, TOP_K_DEFAULT
 from app.embeddings import embed_texts
-from app.retrieval import create_faiss_index, save_index
+from app.retrieval import create_faiss_index, save_index, load_index, search
 
 
 def extract_text_from_pdf(file_path: str) -> str:
@@ -45,3 +45,24 @@ def index_document(file_path: str):
     save_index(index, chunks)
 
     return {"num_chunks": len(chunks), "status": "Document indexed successfully"}
+
+
+def retrieve_context(question: str, top_k: int = TOP_K_DEFAULT):
+    index, metadata = load_index()
+
+    question_embedding = embed_texts([question])[0]
+
+    distances, indices = search(index, question_embedding, top_k)
+
+    retrieved_chunks = []
+    similarity_scores = []
+
+    for dist, idx in zip(distances, indices):
+        if idx == -1:
+            continue
+
+        retrieved_chunks.append(metadata[idx])
+        similarity = 1 / (1 + dist)  # Convert distance to similarity score
+        similarity_scores.append(similarity)
+
+    return retrieved_chunks, similarity_scores
