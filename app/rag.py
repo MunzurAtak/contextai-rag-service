@@ -2,7 +2,7 @@ import os
 from pypdf import PdfReader
 from app.config import CHUNK_SIZE, CHUNK_OVERLAP, TOP_K_DEFAULT
 from app.embeddings import embed_texts
-from app.retrieval import create_faiss_index, save_index, load_index, search
+from app.retrieval import create_or_load_index, save_index, load_index, search
 from app.llm import generate_answer
 
 
@@ -41,11 +41,24 @@ def index_document(file_path: str):
 
     embeddings = embed_texts(chunks)
 
-    index = create_faiss_index(embeddings)
+    dimension = len(embeddings[0])
+    index = create_or_load_index(dimension)
 
-    save_index(index, chunks)
+    index.add(np.array(embeddings).astype("float32"))
 
-    return {"num_chunks": len(chunks), "status": "Document indexed successfully"}
+    metadata = []
+    filename = os.path.basename(file_path)
+
+    for i, chunk in enumerate(chunks):
+        metadata.append({"text": chunk, "source": filename, "chunk_id": i})
+
+    save_index(index, metadata)
+
+    return {
+        "num_chunks": len(chunks),
+        "status": "Document indexed successfully",
+        "source": filename,
+    }
 
 
 def retrieve_context(question: str, top_k: int = TOP_K_DEFAULT):
@@ -62,7 +75,7 @@ def retrieve_context(question: str, top_k: int = TOP_K_DEFAULT):
         if idx == -1:
             continue
 
-        retrieved_chunks.append(metadata[idx])
+        retrieved_chunks.append(metadata[idx]["text"])
         similarity = 1 / (1 + dist)  # Convert distance to similarity score
         similarity_scores.append(similarity)
 
