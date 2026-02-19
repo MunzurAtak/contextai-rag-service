@@ -4,6 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.rag import index_document, answer_question
 from app.schemas import ChatRequest, ChatResponse
+from app.logger import get_logger
+
+log = get_logger(__name__)
 
 app = FastAPI(title="ContextAI RAG Service")
 
@@ -33,6 +36,7 @@ async def upload_document(file: UploadFile = File(...)):
         return result
 
     except Exception as e:
+        log.exception(f"Upload failed for {file.filename}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -42,4 +46,5 @@ def chat(request: ChatRequest):
         response = answer_question(request.question, request.top_k)
         return response
     except Exception as e:
+        log.exception("Chat request failed")
         raise HTTPException(status_code=500, detail=str(e))

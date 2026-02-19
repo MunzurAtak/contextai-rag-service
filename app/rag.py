@@ -4,7 +4,7 @@ import faiss
 import nltk
 import numpy as np
 from nltk.tokenize import sent_tokenize
-from pypdf import PdfReader
+import fitz  # pymupdf
 from app.config import CHUNK_SIZE, CHUNK_OVERLAP, TOP_K_DEFAULT, RERANKER_TOP_N
 
 nltk.download("punkt_tab", quiet=True)
@@ -18,13 +18,11 @@ log = get_logger(__name__)
 
 
 def extract_text_from_pdf(file_path: str) -> str:
-    reader = PdfReader(file_path)
+    doc = fitz.open(file_path)
     text = ""
 
-    for page in reader.pages:
-        page_text = page.extract_text()
-        if page_text:
-            text += page_text + "\n"
+    for page in doc:
+        text += page.get_text() + "\n"
 
     return text
 
@@ -70,7 +68,11 @@ def index_document(file_path: str):
     text = extract_text_from_pdf(file_path)
 
     if not text.strip():
-        raise ValueError("Document contains no readable text.")
+        raise ValueError(
+            "No text could be extracted from this PDF. "
+            "It appears to be image-based (scanned). "
+            "Please re-export it as a text-based PDF from Word, Google Docs, or Canva."
+        )
 
     chunks = chunk_text(text)
     log.info(f"Chunked into {len(chunks)} sentences-aware chunks")
