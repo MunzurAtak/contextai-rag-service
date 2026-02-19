@@ -1,8 +1,12 @@
 import os
 import faiss
+import nltk
 import numpy as np
+from nltk.tokenize import sent_tokenize
 from pypdf import PdfReader
 from app.config import CHUNK_SIZE, CHUNK_OVERLAP, TOP_K_DEFAULT
+
+nltk.download("punkt_tab", quiet=True)
 from app.embeddings import embed_texts
 from app.retrieval import create_or_load_index, save_index, load_index, search
 from app.llm import generate_answer
@@ -21,14 +25,35 @@ def extract_text_from_pdf(file_path: str) -> str:
 
 
 def chunk_text(text: str) -> list[str]:
+    sentences = sent_tokenize(text)
     chunks = []
-    start = 0
+    current_sentences = []
+    current_length = 0
 
-    while start < len(text):
-        end = start + CHUNK_SIZE
-        chunk = text[start:end]
-        chunks.append(chunk)
-        start += CHUNK_SIZE - CHUNK_OVERLAP
+    for sentence in sentences:
+        sentence_len = len(sentence)
+
+        if current_length + sentence_len > CHUNK_SIZE and current_sentences:
+            chunks.append(" ".join(current_sentences))
+
+            # Build overlap from the tail of the current chunk
+            overlap_sentences = []
+            overlap_length = 0
+            for s in reversed(current_sentences):
+                if overlap_length + len(s) <= CHUNK_OVERLAP:
+                    overlap_sentences.insert(0, s)
+                    overlap_length += len(s)
+                else:
+                    break
+
+            current_sentences = overlap_sentences
+            current_length = overlap_length
+
+        current_sentences.append(sentence)
+        current_length += sentence_len
+
+    if current_sentences:
+        chunks.append(" ".join(current_sentences))
 
     return chunks
 
