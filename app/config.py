@@ -9,6 +9,8 @@ FAISS_INDEX_PATH = "vectorstore/index.faiss"
 METADATA_PATH = "vectorstore/metadata.pkl"
 
 TOP_K_DEFAULT = 3
+RERANKER_MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+RERANKER_TOP_N = 10
 
 OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "mistral")

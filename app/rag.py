@@ -4,11 +4,12 @@ import nltk
 import numpy as np
 from nltk.tokenize import sent_tokenize
 from pypdf import PdfReader
-from app.config import CHUNK_SIZE, CHUNK_OVERLAP, TOP_K_DEFAULT
+from app.config import CHUNK_SIZE, CHUNK_OVERLAP, TOP_K_DEFAULT, RERANKER_TOP_N
 
 nltk.download("punkt_tab", quiet=True)
 from app.embeddings import embed_texts
 from app.retrieval import create_or_load_index, save_index, load_index, search
+from app.reranker import rerank
 from app.llm import generate_answer
 
 
@@ -96,19 +97,23 @@ def retrieve_context(question: str, top_k: int = TOP_K_DEFAULT):
     faiss.normalize_L2(question_embedding)
     question_embedding = question_embedding[0]
 
-    distances, indices = search(index, question_embedding, top_k)
+    # Stage 1: retrieve more candidates than needed so reranker has room to work
+    candidate_k = max(RERANKER_TOP_N, top_k)
+    distances, indices = search(index, question_embedding, candidate_k)
 
-    retrieved_chunks = []
-    similarity_scores = []
-
-    for dist, idx in zip(distances, indices):
+    candidates = []
+    for _, idx in zip(distances, indices):
         if idx == -1:
             continue
+        candidates.append(metadata[idx]["text"])
 
-        retrieved_chunks.append(metadata[idx]["text"])
-        similarity_scores.append(float(dist))
+    # Stage 2: cross-encoder reranks candidates by true relevance
+    ranked = rerank(question, candidates)
 
-    return retrieved_chunks, similarity_scores
+    top_chunks = [chunk for chunk, _ in ranked[:top_k]]
+    top_scores = [score for _, score in ranked[:top_k]]
+
+    return top_chunks, top_scores
 
 
 def build_prompt(question: str, context_chunks: list[str]) -> str:
@@ -138,9 +143,9 @@ def answer_question(question: str, top_k: int = TOP_K_DEFAULT):
 
     max_score = max(scores) if scores else 0
 
-    if max_score > 0.75:
+    if max_score > 0.8:
         confidence = "High"
-    elif max_score > 0.55:
+    elif max_score > 0.6:
         confidence = "Medium"
     else:
         confidence = "Low"
