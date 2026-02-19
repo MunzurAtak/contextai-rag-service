@@ -1,3 +1,5 @@
+import os
+
 EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
 
 CHUNK_SIZE = 500
@@ -8,5 +10,5 @@ METADATA_PATH = "vectorstore/metadata.pkl"
 
 TOP_K_DEFAULT = 3
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "mistral"
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://localhost:11434/api/generate")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "mistral")
