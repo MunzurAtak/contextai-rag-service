@@ -1,44 +1,99 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ContextAI</title>
     <link rel="stylesheet" href="styles.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 
 <body>
     <div class="app">
 
         <aside class="sidebar">
-            <h2 class="logo">ContextAI</h2>
+            <div class="sidebar-header">
+                <div class="logo-mark"></div>
+                <span class="logo-text">ContextAI</span>
+            </div>
 
-            <div class="upload-section">
-                <input type="file" id="fileInput">
-                <button onclick="uploadFile()">Upload Document</button>
+            <div class="sidebar-section">
+                <p class="section-label">Document</p>
+
+                <label class="upload-area" id="uploadLabel" for="fileInput">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="17 8 12 3 7 8" />
+                        <line x1="12" y1="3" x2="12" y2="15" />
+                    </svg>
+                    <span id="uploadFileName">Click to select a PDF</span>
+                </label>
+                <input type="file" id="fileInput" accept=".pdf" hidden>
+
+                <button id="uploadBtn" onclick="uploadFile()">Index Document</button>
                 <p id="uploadStatus"></p>
             </div>
 
-            <div class="settings">
-                <label>Top K</label>
-                <select id="topK">
-                    <option value="1">1</option>
-                    <option value="3" selected>3</option>
-                    <option value="5">5</option>
-                </select>
+            <div class="sidebar-section">
+                <p class="section-label">Retrieval</p>
+                <div class="setting-row">
+                    <label for="topK">Results (top-k)</label>
+                    <select id="topK">
+                        <option value="1">1</option>
+                        <option value="3" selected>3</option>
+                        <option value="5">5</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="sidebar-footer">
+                <div class="model-badge">
+                    <span class="model-dot"></span>
+                    <span>Mistral · MiniLM</span>
+                </div>
             </div>
         </aside>
 
         <main class="chat-area">
             <div class="chat-header">
-                <h3 id="docName">No document loaded</h3>
+                <div class="doc-indicator">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                    </svg>
+                    <span id="docName">No document loaded</span>
+                </div>
             </div>
-            <div id="chatContainer" class="chat-container"></div>
 
+            <div id="chatContainer" class="chat-container">
+                <div class="empty-state" id="emptyState">
+                    <div class="empty-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="11" cy="11" r="8" />
+                            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                        </svg>
+                    </div>
+                    <p class="empty-title">Ready to answer questions</p>
+                    <p class="empty-sub">Upload a PDF in the sidebar, then ask anything about it.</p>
+                </div>
+            </div>
 
             <div class="input-area">
-                <input type="text" id="questionInput" placeholder="Ask a question..." />
-                <button onclick="sendMessage()">Send</button>
+                <div class="input-wrapper">
+                    <input type="text" id="questionInput" placeholder="Ask anything about your document…"
+                        autocomplete="off" />
+                    <button onclick="sendMessage()" id="sendBtn" title="Send">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="22" y1="2" x2="11" y2="13" />
+                            <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                        </svg>
+                    </button>
+                </div>
             </div>
         </main>
 

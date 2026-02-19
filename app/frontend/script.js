@@ -1,6 +1,23 @@
 const API_URL = "http://127.0.0.1:8000";
 
 /* =========================
+   File Selection Feedback
+========================= */
+
+document.getElementById("fileInput").addEventListener("change", function () {
+    const label = document.getElementById("uploadFileName");
+    const area = document.getElementById("uploadLabel");
+
+    if (this.files.length) {
+        label.textContent = this.files[0].name;
+        area.classList.add("has-file");
+    } else {
+        label.textContent = "Click to select a PDF";
+        area.classList.remove("has-file");
+    }
+});
+
+/* =========================
    Upload Document
 ========================= */
 
@@ -10,22 +27,30 @@ async function uploadFile() {
 
     if (!fileInput.files.length) return;
 
-    status.innerText = "Indexing document...";
+    status.textContent = "Indexing…";
+    status.className = "";
 
     const formData = new FormData();
     formData.append("file", fileInput.files[0]);
 
-    const response = await fetch(`${API_URL}/upload`, {
-        method: "POST",
-        body: formData
-    });
+    try {
+        const response = await fetch(`${API_URL}/upload`, {
+            method: "POST",
+            body: formData
+        });
 
-    const data = await response.json();
+        if (!response.ok) throw new Error("Upload failed");
 
-    status.innerText = data.status;
+        const data = await response.json();
+        status.textContent = `✓ ${data.num_chunks} chunks indexed`;
+        status.className = "success";
 
-    document.getElementById("docName").innerText =
-        `Document: ${fileInput.files[0].name}`;
+        document.getElementById("docName").textContent =
+            `${fileInput.files[0].name}`;
+    } catch {
+        status.textContent = "Upload failed. Is the server running?";
+        status.className = "error";
+    }
 }
 
 /* =========================
@@ -40,6 +65,10 @@ async function sendMessage() {
     const question = input.value.trim();
     if (!question) return;
 
+    // Hide empty state on first message
+    const emptyState = document.getElementById("emptyState");
+    if (emptyState) emptyState.remove();
+
     addMessage(question, "user");
     input.value = "";
 
@@ -49,35 +78,28 @@ async function sendMessage() {
 
     const thinking = document.createElement("div");
     thinking.classList.add("message", "bot", "typing");
-
-    thinking.innerHTML = `
-      <span></span>
-      <span></span>
-      <span></span>
-    `;
+    thinking.innerHTML = "<span></span><span></span><span></span>";
 
     thinkingWrapper.appendChild(thinking);
     chatContainer.appendChild(thinkingWrapper);
+    scrollToBottom(chatContainer);
 
-    chatContainer.scrollTo({
-        top: chatContainer.scrollHeight,
-        behavior: "smooth"
-    });
+    try {
+        const response = await fetch(`${API_URL}/chat`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ question, top_k: parseInt(topK) })
+        });
 
-    const response = await fetch(`${API_URL}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            question: question,
-            top_k: parseInt(topK)
-        })
-    });
+        if (!response.ok) throw new Error("Request failed");
 
-    const data = await response.json();
-
-    chatContainer.removeChild(thinkingWrapper);
-
-    addMessage(data.answer, "bot", data);
+        const data = await response.json();
+        chatContainer.removeChild(thinkingWrapper);
+        addMessage(data.answer, "bot", data);
+    } catch {
+        chatContainer.removeChild(thinkingWrapper);
+        addMessage("Something went wrong. Please check the server.", "bot");
+    }
 }
 
 /* =========================
@@ -87,68 +109,93 @@ async function sendMessage() {
 function addMessage(text, type, metadata = null) {
     const chatContainer = document.getElementById("chatContainer");
 
-    const messageWrapper = document.createElement("div");
-    messageWrapper.classList.add("message-wrapper", type);
+    const wrapper = document.createElement("div");
+    wrapper.classList.add("message-wrapper", type);
 
     const message = document.createElement("div");
     message.classList.add("message", type);
-    message.innerText = text;
-
-    messageWrapper.appendChild(message);
+    message.textContent = text;
+    wrapper.appendChild(message);
 
     if (metadata && type === "bot") {
-
         // Confidence badge
-        const confidence = document.createElement("div");
-        confidence.classList.add("confidence");
-        confidence.innerText = `Confidence: ${metadata.confidence}`;
-        messageWrapper.appendChild(confidence);
+        const level = metadata.confidence.toLowerCase();
+        const badge = document.createElement("div");
+        badge.classList.add("confidence-badge", level);
+        badge.textContent = `${metadata.confidence} confidence`;
+        wrapper.appendChild(badge);
 
         // Toggle sources
-        const toggle = document.createElement("div");
-        toggle.classList.add("toggle-sources");
-        toggle.innerText = `▸ View Sources (${metadata.sources.length})`;
+        if (metadata.sources && metadata.sources.length) {
+            const toggle = document.createElement("div");
+            toggle.classList.add("toggle-sources");
+            toggle.innerHTML = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
+                    fill="none" stroke="currentColor" stroke-width="2.5">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+                View Sources (${metadata.sources.length})
+            `;
 
-        const sourcesContainer = document.createElement("div");
-        sourcesContainer.classList.add("sources");
-        sourcesContainer.style.display = "none";
+            const sourcesContainer = document.createElement("div");
+            sourcesContainer.classList.add("sources");
+            sourcesContainer.style.display = "none";
 
-        metadata.sources.forEach((source, i) => {
-            const sourceItem = document.createElement("div");
-            sourceItem.classList.add("source-item");
-            sourceItem.innerText =
-                `Score: ${metadata.similarity_scores[i].toFixed(2)}\n\n${source}`;
-            sourcesContainer.appendChild(sourceItem);
-        });
+            metadata.sources.forEach((source, i) => {
+                const score = metadata.similarity_scores[i];
+                const item = document.createElement("div");
+                item.classList.add("source-item");
 
-        toggle.onclick = () => {
-            const visible = sourcesContainer.style.display === "block";
-            sourcesContainer.style.display = visible ? "none" : "block";
-            toggle.innerText = visible
-                ? `▸ View Sources (${metadata.sources.length})`
-                : `▾ Hide Sources`;
-        };
+                const bar = document.createElement("div");
+                bar.classList.add("source-score-bar");
+                bar.innerHTML = `
+                    <span class="score-label">Score ${score.toFixed(2)}</span>
+                    <div class="score-track">
+                        <div class="score-fill" style="width: ${Math.round(score * 100)}%"></div>
+                    </div>
+                `;
 
-        messageWrapper.appendChild(toggle);
-        messageWrapper.appendChild(sourcesContainer);
+                const content = document.createElement("div");
+                content.classList.add("source-text");
+                content.textContent = source;
+
+                item.appendChild(bar);
+                item.appendChild(content);
+                sourcesContainer.appendChild(item);
+            });
+
+            let open = false;
+            toggle.onclick = () => {
+                open = !open;
+                sourcesContainer.style.display = open ? "flex" : "none";
+                toggle.innerHTML = open
+                    ? `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
+                            fill="none" stroke="currentColor" stroke-width="2.5">
+                            <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg> Hide Sources`
+                    : `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24"
+                            fill="none" stroke="currentColor" stroke-width="2.5">
+                            <polyline points="9 18 15 12 9 6"></polyline>
+                        </svg> View Sources (${metadata.sources.length})`;
+            };
+
+            wrapper.appendChild(toggle);
+            wrapper.appendChild(sourcesContainer);
+        }
     }
 
-    chatContainer.appendChild(messageWrapper);
-
-    chatContainer.scrollTo({
-        top: chatContainer.scrollHeight,
-        behavior: "smooth"
-    });
+    chatContainer.appendChild(wrapper);
+    scrollToBottom(chatContainer);
 }
 
 /* =========================
-   Enter to Send
+   Helpers
 ========================= */
 
-document.getElementById("questionInput")
-    .addEventListener("keydown", function (e) {
-        if (e.key === "Enter") {
-            sendMessage();
-        }
-    });
+function scrollToBottom(el) {
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+}
 
+document.getElementById("questionInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") sendMessage();
+});
