@@ -9,7 +9,7 @@ def create_or_load_index(dimension: int):
     if os.path.exists(FAISS_INDEX_PATH):
         index = faiss.read_index(FAISS_INDEX_PATH)
     else:
-        index = faiss.IndexFlatL2(dimension)
+        index = faiss.IndexFlatIP(dimension)
     return index
 
 

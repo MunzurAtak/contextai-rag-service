@@ -1,4 +1,5 @@
 import os
+import faiss
 import numpy as np
 from pypdf import PdfReader
 from app.config import CHUNK_SIZE, CHUNK_OVERLAP, TOP_K_DEFAULT
@@ -40,12 +41,13 @@ def index_document(file_path: str):
 
     chunks = chunk_text(text)
 
-    embeddings = embed_texts(chunks)
+    embeddings = np.array(embed_texts(chunks)).astype("float32")
+    faiss.normalize_L2(embeddings)
 
-    dimension = len(embeddings[0])
+    dimension = embeddings.shape[1]
     index = create_or_load_index(dimension)
 
-    index.add(np.array(embeddings).astype("float32"))
+    index.add(embeddings)
 
     metadata = []
     filename = os.path.basename(file_path)
@@ -65,7 +67,9 @@ def index_document(file_path: str):
 def retrieve_context(question: str, top_k: int = TOP_K_DEFAULT):
     index, metadata = load_index()
 
-    question_embedding = embed_texts([question])[0]
+    question_embedding = np.array(embed_texts([question])).astype("float32")
+    faiss.normalize_L2(question_embedding)
+    question_embedding = question_embedding[0]
 
     distances, indices = search(index, question_embedding, top_k)
 
@@ -77,8 +81,7 @@ def retrieve_context(question: str, top_k: int = TOP_K_DEFAULT):
             continue
 
         retrieved_chunks.append(metadata[idx]["text"])
-        similarity = 1 / (1 + dist)  # Convert distance to similarity score
-        similarity_scores.append(similarity)
+        similarity_scores.append(float(dist))
 
     return retrieved_chunks, similarity_scores
 
@@ -110,9 +113,9 @@ def answer_question(question: str, top_k: int = TOP_K_DEFAULT):
 
     max_score = max(scores) if scores else 0
 
-    if max_score > 0.85:
+    if max_score > 0.75:
         confidence = "High"
-    elif max_score > 0.7:
+    elif max_score > 0.55:
         confidence = "Medium"
     else:
         confidence = "Low"
