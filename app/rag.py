@@ -1,4 +1,5 @@
 import os
+import time
 import faiss
 import nltk
 import numpy as np
@@ -11,6 +12,9 @@ from app.embeddings import embed_texts
 from app.retrieval import create_or_load_index, save_index, load_index, search
 from app.reranker import rerank
 from app.llm import generate_answer
+from app.logger import get_logger, timer
+
+log = get_logger(__name__)
 
 
 def extract_text_from_pdf(file_path: str) -> str:
@@ -60,29 +64,32 @@ def chunk_text(text: str) -> list[str]:
 
 
 def index_document(file_path: str):
+    filename = os.path.basename(file_path)
+    log.info(f"Indexing document: {filename}")
+
     text = extract_text_from_pdf(file_path)
 
     if not text.strip():
         raise ValueError("Document contains no readable text.")
 
     chunks = chunk_text(text)
+    log.info(f"Chunked into {len(chunks)} sentences-aware chunks")
 
-    embeddings = np.array(embed_texts(chunks)).astype("float32")
-    faiss.normalize_L2(embeddings)
+    with timer(log, "Embedding"):
+        embeddings = np.array(embed_texts(chunks)).astype("float32")
+        faiss.normalize_L2(embeddings)
 
     dimension = embeddings.shape[1]
     index = create_or_load_index(dimension)
-
     index.add(embeddings)
 
-    metadata = []
-    filename = os.path.basename(file_path)
-
-    for i, chunk in enumerate(chunks):
-        metadata.append({"text": chunk, "source": filename, "chunk_id": i})
-
+    metadata = [
+        {"text": chunk, "source": filename, "chunk_id": i}
+        for i, chunk in enumerate(chunks)
+    ]
     save_index(index, metadata)
 
+    log.info(f"Indexed {len(chunks)} chunks from {filename}")
     return {
         "num_chunks": len(chunks),
         "status": "Document indexed successfully",
@@ -93,13 +100,15 @@ def index_document(file_path: str):
 def retrieve_context(question: str, top_k: int = TOP_K_DEFAULT):
     index, metadata = load_index()
 
-    question_embedding = np.array(embed_texts([question])).astype("float32")
-    faiss.normalize_L2(question_embedding)
-    question_embedding = question_embedding[0]
+    with timer(log, "Embedding query"):
+        question_embedding = np.array(embed_texts([question])).astype("float32")
+        faiss.normalize_L2(question_embedding)
+        question_embedding = question_embedding[0]
 
     # Stage 1: retrieve more candidates than needed so reranker has room to work
     candidate_k = max(RERANKER_TOP_N, top_k)
-    distances, indices = search(index, question_embedding, candidate_k)
+    with timer(log, "FAISS search"):
+        distances, indices = search(index, question_embedding, candidate_k)
 
     candidates = []
     for _, idx in zip(distances, indices):
@@ -108,7 +117,8 @@ def retrieve_context(question: str, top_k: int = TOP_K_DEFAULT):
         candidates.append(metadata[idx]["text"])
 
     # Stage 2: cross-encoder reranks candidates by true relevance
-    ranked = rerank(question, candidates)
+    with timer(log, "Reranking"):
+        ranked = rerank(question, candidates)
 
     top_chunks = [chunk for chunk, _ in ranked[:top_k]]
     top_scores = [score for _, score in ranked[:top_k]]
@@ -135,12 +145,18 @@ Answer clearly and concisely.
 
 
 def answer_question(question: str, top_k: int = TOP_K_DEFAULT):
+    log.info(f"Query: {question!r}")
+
+    t_start = time.perf_counter()
+
     chunks, scores = retrieve_context(question, top_k)
 
     prompt = build_prompt(question, chunks)
 
-    answer = generate_answer(prompt)
+    with timer(log, "LLM generation"):
+        answer = generate_answer(prompt)
 
+    total = time.perf_counter() - t_start
     max_score = max(scores) if scores else 0
 
     if max_score > 0.8:
@@ -149,6 +165,8 @@ def answer_question(question: str, top_k: int = TOP_K_DEFAULT):
         confidence = "Medium"
     else:
         confidence = "Low"
+
+    log.info(f"Done — confidence={confidence}, top_score={max_score:.4f}, total={total:.3f}s")
 
     return {
         "answer": answer,
