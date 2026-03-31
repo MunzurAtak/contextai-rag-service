@@ -2,24 +2,11 @@ services:
   api:
     build: .
     ports:
-      - "8000:8000"
+      - "7860:7860"
     volumes:
       - ./data:/app/data
       - ./vectorstore:/app/vectorstore
     environment:
-      - OLLAMA_URL=http://ollama:11434/api/generate
-      - OLLAMA_MODEL=mistral
-    depends_on:
-      - ollama
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GROQ_MODEL=${GROQ_MODEL:-llama-3.1-8b-instant}
     restart: unless-stopped
-
-  ollama:
-    image: ollama/ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-    restart: unless-stopped
-
-volumes:
-  ollama_data:

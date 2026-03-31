@@ -1,3 +1,12 @@
+---
+title: ContextAI RAG Service
+emoji: 📄
+colorFrom: blue
+colorTo: purple
+sdk: docker
+pinned: false
+---
+
 # ContextAI — RAG Service
 
 A production-ready Retrieval-Augmented Generation (RAG) service that lets you upload any PDF and ask questions about it. Built with a two-stage retrieval pipeline, cosine similarity search, and a local LLM — fully containerised with Docker.
