@@ -1,6 +1,8 @@
 import os
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 from app.rag import index_document, answer_question
 from app.schemas import ChatRequest, ChatResponse
@@ -18,6 +20,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+app.mount("/static", StaticFiles(directory="app/frontend"), name="static")
+
+
+@app.get("/")
+def serve_frontend():
+    return FileResponse("app/frontend/index.html")
 
 
 @app.post("/upload")
