@@ -9,7 +9,9 @@ pinned: false
 
 # ContextAI — RAG Service
 
-A production-ready Retrieval-Augmented Generation (RAG) service that lets you upload any PDF and ask questions about it. Built with a two-stage retrieval pipeline, cosine similarity search, and a local LLM — fully containerised with Docker.
+A production-ready Retrieval-Augmented Generation (RAG) service that lets you upload any PDF and ask questions about it. Built with a two-stage retrieval pipeline, cosine similarity search, and a cloud LLM — fully containerised with Docker.
+
+**[Live Demo](https://huggingface.co/spaces/MunzurAtak/contextai-rag)**
 
 ---
 
@@ -17,7 +19,7 @@ A production-ready Retrieval-Augmented Generation (RAG) service that lets you up
 
 Upload a PDF. Ask a question. Get an accurate, grounded answer — with sources and a confidence score.
 
-The system retrieves the most relevant passages from your document using a bi-encoder + cross-encoder pipeline, then passes them to a local language model (Mistral via Ollama) to generate an answer.
+The system retrieves the most relevant passages from your document using a bi-encoder + cross-encoder pipeline, then passes them to a cloud language model (Llama 3.1 via Groq) to generate an answer.
 
 ---
 
@@ -38,7 +40,7 @@ The system retrieves the most relevant passages from your document using a bi-en
 │  Scores each (query, chunk) pair jointly → reorders by relevance    │
 ├─────────────────────────────────────────────────────────────────────┤
 │  GENERATION                                                         │
-│  Top-K chunks → Prompt → Ollama Mistral → Answer + confidence score │
+│  Top-K chunks → Prompt → Groq (Llama 3.1) → Answer + confidence score │
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -52,7 +54,7 @@ The system retrieves the most relevant passages from your document using a bi-en
 | **Cross-encoder reranking** | Bi-encoders encode query and document separately (fast but imprecise). A cross-encoder sees the full `(query, chunk)` pair — significantly more accurate for final ranking |
 | **Sentence-aware chunking** | Fixed-size character chunking cuts sentences mid-word, degrading embedding quality. NLTK sentence tokenisation preserves semantic units |
 | **Sigmoid-normalised reranker scores** | Cross-encoder logits are unbounded. Sigmoid maps them to `(0, 1)` for interpretable confidence thresholds |
-| **Env-variable config** | `OLLAMA_URL` and `OLLAMA_MODEL` are overridden via environment variables, making local dev and Docker compose work without code changes |
+| **Env-variable config** | `GROQ_API_KEY` and `GROQ_MODEL` are injected via environment variables, making local dev and Docker Compose work without code changes |
 
 ---
 
@@ -62,7 +64,7 @@ The system retrieves the most relevant passages from your document using a bi-en
 - **Embeddings** — `sentence-transformers/all-MiniLM-L6-v2`
 - **Vector search** — FAISS (CPU)
 - **Reranking** — `cross-encoder/ms-marco-MiniLM-L-6-v2`
-- **LLM** — Mistral 7B via Ollama
+- **LLM** — Llama 3.1 via Groq API
 - **Chunking** — NLTK sentence tokeniser
 - **Containerisation** — Docker + Docker Compose
 
@@ -72,21 +74,21 @@ The system retrieves the most relevant passages from your document using a bi-en
 
 ### Option A — Docker (recommended, one command)
 
-**Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+**Prerequisites:** [Docker Desktop](https://www.docker.com/products/docker-desktop/) and a [Groq API key](https://console.groq.com)
 
 ```bash
 # 1. Clone the repository
 git clone https://github.com/MunzurAtak/contextai-rag-service.git
 cd contextai-rag-service
 
-# 2. Start everything
-docker compose up --build
+# 2. Set your Groq API key
+export GROQ_API_KEY=your_key_here
 
-# 3. In a second terminal — pull the language model (first time only, ~4 GB)
-docker compose exec ollama ollama pull mistral
+# 3. Start everything
+docker compose up --build
 ```
 
-Then open `app/frontend/index.html` in your browser.
+Then open `http://localhost:7860` in your browser.
 
 ---
 
@@ -107,17 +109,12 @@ python --version
 
 ---
 
-#### Step 2 — Install Ollama
+#### Step 2 — Get a Groq API Key
 
-Download and install Ollama from [ollama.com](https://ollama.com).
+Sign up at [console.groq.com](https://console.groq.com), create an API key, and set it as an environment variable:
 
-After installing, open a terminal and pull the language model (this downloads ~4 GB, one time only):
-
-```bash
-ollama pull mistral
-```
-
-Leave Ollama running in the background.
+- **Windows:** `set GROQ_API_KEY=your_key_here`
+- **Mac / Linux:** `export GROQ_API_KEY=your_key_here`
 
 ---
 
@@ -198,7 +195,7 @@ contextai-rag-service/
 │   ├── retrieval.py     # FAISS index management
 │   ├── embeddings.py    # Sentence-transformer wrapper
 │   ├── reranker.py      # Cross-encoder reranking
-│   ├── llm.py           # Ollama API client
+│   ├── llm.py           # Groq API client
 │   ├── config.py        # Configuration and env variables
 │   ├── logger.py        # Structured logging + latency timers
 │   ├── schemas.py       # Pydantic request/response models
